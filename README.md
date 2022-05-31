@@ -2,7 +2,7 @@
 
 ## Author: Minsu Cho, Ameya Joshi, Siddharth Garg, Brandon Reagen, Chinmay Hegde
 
-This is the official code for our paper Selective Network Linearization for Efficient Private Inference published in ICML 2022. 
+This is the official code for our [paper](https://arxiv.org/pdf/2202.02340.pdf) Selective Network Linearization for Efficient Private Inference published in ICML 2022. 
 
 <p>
 <img src="figures/snl.png" height="300">
