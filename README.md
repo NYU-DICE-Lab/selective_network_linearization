@@ -30,7 +30,13 @@ bash ./scripts/train_resnet18_c100.sh
 ```
 2. Run SNL code with the saved models from Step 1.
 ```
-bash ./scripts/snl_resnet18_c100.sh
+bash ./scripts/snl_resnet18_c100_relu_100k.sh
+```
+
+The other examples for different relu counts are
+```
+bash ./scripts/snl_resnet18_c100_relu_25k.sh
+bash ./scripts/snl_resnet18_c100_relu_50k.sh
 ```
 
 
