@@ -142,7 +142,6 @@ class BasicBlock_IN(nn.Module):
 class ResNet_IN(nn.Module):
     def __init__(self, block, num_blocks, args, num_classes=10):
         super(ResNet_IN, self).__init__()
-        print("Hello WOrld")
         self.in_planes = 64
         if args.dataset in ['cifar10', 'cifar100']:
             self.feature_size = 32
