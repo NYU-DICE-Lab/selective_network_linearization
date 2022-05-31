@@ -1,0 +1,6 @@
+.ipynb_checkpoints/
+dataset_cache
+__pycache__/
+pretrained_models
+snl_output/
+*.pkl
