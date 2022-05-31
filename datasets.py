@@ -4,11 +4,6 @@ import torch
 import os
 from torch.utils.data import Dataset
 
-# set this environment variable to the location of your imagenet directory if you want to read ImageNet data.
-# make sure your val directory is preprocessed to look like the train directory, e.g. by running this script
-# https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
-
-# For ImageNet and Tiny-ImageNet, you need to define the directory in _imagenet() and _tinyimagenet() function.
 
 # list of all datasets
 DATASETS = ["imagenet", "cifar10", "cifar100", "mnist", "fashion_mnist", "tiny_imagenet"]
@@ -35,6 +30,12 @@ def get_num_classes(dataset: str):
     if dataset == "imagenet":
         return 1000
     elif dataset == "cifar10":
+        return 10
+    elif dataset == "cifar100":
+        return 100
+    elif dataset == "mnist":
+        return 10
+    elif dataset == "fashion_mnist":
         return 10
 
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -133,7 +134,7 @@ def _imagenet(split: str) -> Dataset:
 
 def _tinyimagenet(split: str) -> Dataset:
     if split == "train":
-        subdir = os.path.join("/scratch/mc8065/tiny-imagenet-200", "train")
+        subdir = os.path.join("path/to//tiny-imagenet-200", "train")
         transform = transforms.Compose([
             transforms.RandomCrop(64, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -141,7 +142,7 @@ def _tinyimagenet(split: str) -> Dataset:
             transforms.Normalize(_TINY_MEAN, _TINY_STD)
         ])
     elif split == "test":
-        subdir = os.path.join("/scratch/mc8065/tiny-imagenet-200", "val")
+        subdir = os.path.join("path/to//tiny-imagenet-200", "val")
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(_TINY_MEAN, _TINY_STD)

@@ -261,56 +261,6 @@ def model_inference_imagenet(base_classifier, loader, device, display=False, pri
         print("Final Accuracy: [{0}]".format(top1.avg))
         
     return top1.avg, top5.avg
-
-def mask_forward_conv2d(self, x):
-    return F.conv2d(x, self.weight * self.weight_mask, self.bias, self.stride, 
-                    self.padding, self.dilation, self.groups)
-
-def mask_forward_linear(self, x):
-    return F.linear(x, self.weight * self.weight_mask, self.bias)
-
-def weighted_forward_conv2d(self, x):
-    feature_map = F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
-    return self.alpha.expand_as(feature_map) * feature_map
-
-def reset_forward_conv2d(self, x):
-    return F.conv2d(x, self.weight, self.bias, self.stride, 
-                    self.padding, self.dilation, self.groups)
-
-def reset_forward_linear(self, x):
-    return F.linear(x, self.weight, self.bias)
-
-
-def apply_prune_mask(net, keep_masks):
-
-    # Before I can zip() layers and pruning masks I need to make sure they match
-    # one-to-one by removing all the irrelevant modules:
-    prunable_layers = filter(
-        lambda layer: isinstance(layer, nn.Conv2d) or isinstance(
-            layer, nn.Linear), net.modules())
-
-    for layer, keep_mask in zip(prunable_layers, keep_masks):
-        assert (layer.weight.shape == keep_mask.shape)
-
-        def hook_factory(keep_mask):
-            """
-            The hook function can't be defined directly here because of Python's
-            late binding which would result in all hooks getting the very last
-            mask! Getting it through another function forces early binding.
-            """
-
-            def hook(grads):
-                return grads * keep_mask
-
-            return hook
-
-        # mask[i] == 0 --> Prune parameter
-        # mask[i] == 1 --> Keep parameter
-
-        # Step 1: Set the masked weights to zero (NB the biases are ignored)
-        # Step 2: Make sure their gradients remain zero
-        layer.weight.data[keep_mask == 0.] = 0.
-        layer.weight.register_hook(hook_factory(keep_mask))
         
 def mask_train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Optimizer, 
                epoch: int, device, alpha, display=False):
@@ -328,13 +278,7 @@ def mask_train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer:
         empty_tensor = []
         for name, param in model.named_parameters():
             if 'alpha' in name:
-                # reg_loss += torch.norm(param, p=1)
                 empty_tensor.append(param)
-        # for layer in model.modules():
-        #     if isinstance(layer, nn.Conv2d):
-        #         reg_loss += torch.norm(layer.alpha, p=1)
-        #     # if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-        #     #     reg_loss += torch.norm(layer.weight_mask, p=1)
         reg_loss += torch.norm(torch.cat(empty_tensor, dim=0), p=1)
         # compute output
         outputs = model(inputs)
@@ -368,13 +312,7 @@ def mask_train_kd(loader: DataLoader, model: torch.nn.Module, model_teacher: tor
         empty_tensor = []
         for name, param in model.named_parameters():
             if 'alpha' in name:
-                # reg_loss += torch.norm(param, p=1)
                 empty_tensor.append(param)
-        # for layer in model.modules():
-        #     if isinstance(layer, nn.Conv2d):
-        #         reg_loss += torch.norm(layer.alpha, p=1)
-        #     # if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-        #     #     reg_loss += torch.norm(layer.weight_mask, p=1)
         reg_loss += torch.norm(torch.cat(empty_tensor, dim=1), p=1)
         # compute output
         outputs = model(inputs)
@@ -406,17 +344,9 @@ def mask_train_kd_unstructured(loader: DataLoader, model: torch.nn.Module, model
         targets = targets.to(device)
         
         reg_loss = 0
-        empty_tensor = []
         for name, param in model.named_parameters():
             if 'alpha' in name:
                 reg_loss += torch.norm(param, p=1)
-                # empty_tensor.append(param)
-        # for layer in model.modules():
-        #     if isinstance(layer, nn.Conv2d):
-        #         reg_loss += torch.norm(layer.alpha, p=1)
-        #     # if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-        #     #     reg_loss += torch.norm(layer.weight_mask, p=1)
-        # reg_loss += torch.norm(torch.cat(empty_tensor, dim=1), p=1)
         # compute output
         outputs = model(inputs)
         outputs_t = model_teacher(inputs)
@@ -433,28 +363,7 @@ def mask_train_kd_unstructured(loader: DataLoader, model: torch.nn.Module, model
 
 def relu_counting(net, arch, args):
     if args.dataset in ['cifar10', 'cifar100']:
-        if arch == "resnet32":
-            relu_count = 0
-            _channels = [32, 128, 512]
-            if args.stride == 1:
-                feature_maps = [32, 16, 8]
-            else:
-                feature_maps = [16, 8, 4]
-            for name, param in net.named_parameters():
-                if 'alpha' in name:
-                    if name == 'alpha.alphas':
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * 1
-                        raise ValueError("alpha.alphas should not be in the named parameters")
-                    elif 'layer1' in name:
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * 1
-                    elif 'layer2' in name:
-                        relu_count += _channels[1] * feature_maps[1] * feature_maps[1] * 1
-                    elif 'layer3' in name:
-                        relu_count += _channels[2] * feature_maps[2] * feature_maps[2] * 1
-                    else:
-                        raise ValueError('not in the category')
-            return relu_count
-        elif arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
+        if arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
             relu_count = 0
             _channels = [64, 128, 256, 512]
             if args.stride == 1:
@@ -548,30 +457,7 @@ def relu_counting(net, arch, args):
         else:
             raise ValueError("Check the architecture supports the relu_count")
     elif args.dataset == 'tiny_imagenet':
-        if arch == "resnet32":
-            relu_count = 0
-            _channels = [32, 128, 512]
-            if args.stride == 1:
-                feature_maps = [32, 16, 8]
-                feature_maps = [2*i for i in feature_maps]
-            else:
-                feature_maps = [16, 8, 4]
-                feature_maps = [2*i for i in feature_maps]
-            for name, param in net.named_parameters():
-                if 'alpha' in name:
-                    if name == 'alpha.alphas':
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * 1
-                        raise ValueError("alpha.alphas should not be in the named parameters")
-                    elif 'layer1' in name:
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * 1
-                    elif 'layer2' in name:
-                        relu_count += _channels[1] * feature_maps[1] * feature_maps[1] * 1
-                    elif 'layer3' in name:
-                        relu_count += _channels[2] * feature_maps[2] * feature_maps[2] * 1
-                    else:
-                        raise ValueError('not in the category')
-            return relu_count
-        elif arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
+        if arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
             relu_count = 0
             _channels = [64, 128, 256, 512]
             if args.stride == 1:
@@ -677,38 +563,7 @@ def relu_counting(net, arch, args):
 
 def relu_masked_counting(net, arch, args):
     if args.dataset in ['cifar10', 'cifar100']:
-        if arch == "resnet32":
-            relu_count = 0
-            _channels = [32, 128, 512]
-            if args.stride == 1:
-                feature_maps = [32, 16, 8]
-            else:
-                feature_maps = [16, 8, 4]
-            for name, param in net.named_parameters():
-                if 'alpha' in name:
-                    if name == 'alpha.alphas':
-                        raise ValueError("alpha.alphas should not be in the named parameters")
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * factor
-                    elif 'layer1' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * factor
-                    elif 'layer2' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[1] * feature_maps[1] * feature_maps[1] * factor
-                    elif 'layer3' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[2] * feature_maps[2] * feature_maps[2] * factor
-                    else:
-                        raise ValueError('not in the category')
-
-            return relu_count
-
-        elif arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
+        if arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
             relu_count = 0
             _channels = [64, 128, 256, 512]
             if args.stride == 1:
@@ -839,40 +694,7 @@ def relu_masked_counting(net, arch, args):
         else:
             raise ValueError("Check the architecture supports the relu_count")
     elif args.dataset == 'tiny_imagenet':
-        if arch == "resnet32":
-            relu_count = 0
-            _channels = [32, 128, 512]
-            if args.stride == 1:
-                feature_maps = [32, 16, 8]
-                feature_maps = [2*i for i in feature_maps]
-            else:
-                feature_maps = [16, 8, 4]
-                feature_maps = [2*i for i in feature_maps]
-            for name, param in net.named_parameters():
-                if 'alpha' in name:
-                    if name == 'alpha.alphas':
-                        raise ValueError("alpha.alphas should not be in the named parameters")
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * factor
-                    elif 'layer1' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[0] * feature_maps[0] * feature_maps[0] * factor
-                    elif 'layer2' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[1] * feature_maps[1] * feature_maps[1] * factor
-                    elif 'layer3' in name:
-                        boolean_list = param.data > args.threshold
-                        factor =  (boolean_list == 1).sum() / float(param.numel()) 
-                        relu_count += _channels[2] * feature_maps[2] * feature_maps[2] * factor
-                    else:
-                        raise ValueError('not in the category')
-
-            return relu_count
-
-        elif arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
+        if arch == "resnet34_in" or arch == "resnet50_in" or arch == "resnet18_in" or arch == "resnet9_in":
             relu_count = 0
             _channels = [64, 128, 256, 512]
             if args.stride == 1:
@@ -1012,8 +834,6 @@ def relu_masked_counting(net, arch, args):
             raise ValueError("Check the architecture supports the relu_count")
     else:
         raise ValueError("Check the dataset supports the relu_count")
-
-
 
 class CosineAnnealingAlpha():
     def __init__(self, T_max, eta_min=0):
