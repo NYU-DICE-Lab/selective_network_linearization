@@ -56,12 +56,13 @@ parser.add_argument('--stride', type=int, default=1, help='conv1 stride')
 args = parser.parse_args()
 
 
-def num_relus(net):
-    total = 0
+def relu_counting(net, args):
+    relu_count = 0
     for name, param in net.named_parameters():
         if 'alpha' in name:
-            total += param.numel()
-    return total
+            boolean_list = param.data > args.threshold
+            relu_count += (boolean_list == 1).sum()
+    return relu_count
 
 def main():
     if not os.path.exists(args.outdir):
@@ -77,12 +78,6 @@ def main():
     log(logfilename, "Learning Rate: {:}".format(args.lr))
     log(logfilename, "Alpha: {:}".format(args.alpha))
     log(logfilename, "ReLU Budget: {:}".format(args.relu_budget))
-
-    print("Hyperparameter List")
-    print("Finetune Epochs: {:}".format(args.finetune_epochs))
-    print("Learning Rate: {:}".format(args.lr))
-    print("Alpha: {:}".format(args.alpha))
-    print("ReLU Budget: {:}".format(args.relu_budget))
 
     train_dataset = get_dataset(args.dataset, 'train')
     test_dataset = get_dataset(args.dataset, 'test')
@@ -100,22 +95,20 @@ def main():
     base_classifier.eval()
 
     log(logfilename, "Loaded the base_classifier")
-    print("Loaded the base_classifier")
 
     # Calculating the loaded model's test accuracy.
     original_acc = model_inference(base_classifier, test_loader,
                                     device, display=True)
     
     log(logfilename, "Original Model Test Accuracy: {:.5}".format(original_acc))
-    print("Original Model Test Accuracy, ", original_acc)
 
     # Creating a fresh copy of network not affecting the original network.
     net = copy.deepcopy(base_classifier)
     net = net.to(device)
 
-    relu_count = relu_counting(net, args.arch, args)
+    relu_count = relu_counting(net, args)
 
-    print("Original ReLU Count: {}".format(relu_count))
+    log(logfilename, "Original ReLU Count: {}".format(relu_count))
 
     for name, param in net.named_parameters():
         if 'alpha' in name:
@@ -124,50 +117,39 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)  
     optimizer = Adam(net.parameters(), lr=args.lr)
     
-    total = 0
-    total = num_relus(net)
+    total = relu_counting(net, args)
 
     # Corresponds to Line 4-9
     lowest_relu_count, relu_count = total, total
     for epoch in range(args.epochs):
-        if epoch % 5 == 0:
-            print("Current epochs: ", epoch)
-            print("ReLU Count: {:}".format(relu_count))
         
         train_loss = mask_train_kd_unstructured(train_loader, net, base_classifier, criterion, optimizer,
                                 epoch, device, alpha=args.alpha, display=False)
         acc = model_inference(net, test_loader, device, display=False)
 
-        print("Epoch {:}, Mask Update Test Acc: {:.5}".format(epoch, acc))
-        log(logfilename, "Epoch {:}, Mask Update Test Acc: {:.5}".format(epoch, acc))
-
         # counting ReLU in the neural network by using threshold.
-        relu_count = 0
-        for name, param in net.named_parameters():
-            if 'alpha' in name:
-                boolean_list = param.data > args.threshold
-                relu_count += (boolean_list == 1).sum()
-                
+        relu_count = relu_counting(net, args)        
+        log(logfilename, 'Epochs: {}\t'
+              'Test Acc: {}\t'
+              'Relu Count: {}\t'
+              'Alpha: {:.6f}\t'.format(
+                  epoch, acc, relu_count, args.alpha
+              )
+              )
+        
         if relu_count < lowest_relu_count:
             lowest_relu_count = relu_count 
         elif relu_count >= lowest_relu_count and epoch >= 5:
             args.alpha *= 1.1
-            print("args.alpha = {}".format(args.alpha))
 
         if relu_count <= args.relu_budget:
             print("Current epochs breaking loop at {:}".format(epoch))
             break
 
-    relu_count = 0
-    for name, param in net.named_parameters():
-        if 'alpha' in name:
-            boolean_list = param.data > args.threshold
-            relu_count += (boolean_list == 1).sum()
-
     print("After SNL Algorithm, the current ReLU Count: {}".format(relu_count))
     log(logfilename, "After SNL Algorithm, the current ReLU Count: {}".format(relu_count))
 
-    # Line 11
+    # Line 11: Threshold and freeze alpha
     for name, param in net.named_parameters():
         if 'alpha' in name:
             boolean_list = param.data > args.threshold
@@ -175,7 +157,7 @@ def main():
             param.requires_grad = False
 
  
-    # Line 12
+    # Line 12: Finetuing the network
     finetune_epoch = args.finetune_epochs
 
     optimizer = SGD(net.parameters(), lr=1e-3, momentum=args.momentum, weight_decay=args.weight_decay)

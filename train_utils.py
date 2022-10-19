@@ -62,6 +62,7 @@ def init_logfile(filename: str, text: str):
     f.close()
 
 def log(filename: str, text: str):
+    print(text)
     f = open(filename, 'a')
     f.write(text+"\n")
     f.close()
