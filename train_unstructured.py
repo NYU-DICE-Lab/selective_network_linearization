@@ -1,7 +1,3 @@
-# this file is based on code publicly available at
-#   https://github.com/bearpaw/pytorch-classification
-# written by Wei Yang.
-
 import argparse
 import os
 import torch

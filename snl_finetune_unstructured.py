@@ -110,6 +110,7 @@ def main():
 
     log(logfilename, "Original ReLU Count: {}".format(relu_count))
 
+    # Alpha is the masking parameters initialized to 1. Enabling the grad.
     for name, param in net.named_parameters():
         if 'alpha' in name:
             param.requires_grad = True
@@ -117,12 +118,14 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)  
     optimizer = Adam(net.parameters(), lr=args.lr)
     
+    # counting number of ReLU.
     total = relu_counting(net, args)
 
     # Corresponds to Line 4-9
     lowest_relu_count, relu_count = total, total
     for epoch in range(args.epochs):
         
+        # Simultaneous tarining of w and alpha with KD loss.
         train_loss = mask_train_kd_unstructured(train_loader, net, base_classifier, criterion, optimizer,
                                 epoch, device, alpha=args.alpha, display=False)
         acc = model_inference(net, test_loader, device, display=False)
@@ -139,6 +142,7 @@ def main():
         
         if relu_count < lowest_relu_count:
             lowest_relu_count = relu_count 
+        
         elif relu_count >= lowest_relu_count and epoch >= 5:
             args.alpha *= 1.1
 
@@ -146,7 +150,6 @@ def main():
             print("Current epochs breaking loop at {:}".format(epoch))
             break
 
-    print("After SNL Algorithm, the current ReLU Count: {}".format(relu_count))
     log(logfilename, "After SNL Algorithm, the current ReLU Count: {}".format(relu_count))
 
     # Line 11: Threshold and freeze alpha
