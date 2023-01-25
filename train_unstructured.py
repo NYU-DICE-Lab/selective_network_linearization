@@ -12,7 +12,7 @@ import time
 import datetime
 from train_utils import AverageMeter, accuracy, init_logfile, log
 
-from utils import relu_counting, train, test
+from utils import train, test
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('dataset', type=str, choices=DATASETS)

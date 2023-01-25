@@ -2,7 +2,7 @@ import torch
 # from torchvision.models.resnet import resnet50
 import torch.backends.cudnn as cudnn
 from archs_unstructured.cifar_resnet import resnet34_in, resnet50_in, resnet18_in, resnet9_in
-from archs_unstructured.cifar_resnet import wide_resnet_22_8
+from archs_unstructured.cifar_resnet import wide_resnet_22_8, wide_resnet_28_10_drop02
 # from archs.cifar_resnet import wide_resnet_22_8, wide_resnet_22_8_drop02, wide_resnet_28_10_drop02, wide_resnet_28_12_drop02, wide_resnet_16_8_drop02
 from torch.nn.functional import interpolate
 
@@ -40,6 +40,10 @@ def get_architecture(arch: str, dataset: str, device, args) -> torch.nn.Module:
         model = wide_resnet_22_8(num_classes=10, args=args).to(device)
     elif arch == "wide_resnet_22_8" and dataset == "tiny_imagenet":
         model = wide_resnet_22_8(num_classes=200, args=args).to(device)
+    elif arch == "wide_resnet_28_10" and dataset == "cifar100":
+        model = wide_resnet_28_10_drop02(num_classes=100, args=args).to(device)
+    elif arch == "wide_resnet_28_10" and dataset == "cifar10":
+        model = wide_resnet_28_10_drop02(num_classes=10, args=args).to(device)
     else:
         raise AssertionError("Your architecture is not in the list.")
     return model

@@ -20,6 +20,7 @@ import types
 from math import ceil
 from train_utils import AverageMeter, accuracy, accuracy_list, init_logfile, log
 from utils import *
+import sys
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('dataset', type=str, choices=DATASETS)
@@ -39,6 +40,7 @@ parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
 parser.add_argument('--alpha', default=1e-5, type=float,
                     help='Lasso coefficient')
 parser.add_argument('--threshold', default=1e-2, type=float)
+parser.add_argument('--budegt_type', default='absolute', type=str, choices=['absolute', 'relative'])
 parser.add_argument('--relu_budget', default=50000, type=int)
 parser.add_argument('--lr_step_size', type=int, default=30,
                     help='How often to decrease learning by gamma.')
@@ -55,6 +57,9 @@ parser.add_argument('--print-freq', default=100, type=int,
 parser.add_argument('--stride', type=int, default=1, help='conv1 stride')
 args = parser.parse_args()
 
+if args.budegt_type == 'relative' and args.relu_budget > 1:
+    print(f'Warning: relative budget type is used, but the relu budget is {args.relu_budget} > 1.')
+    sys.exit(1)
 
 def relu_counting(net, args):
     relu_count = 0
@@ -120,6 +125,8 @@ def main():
     
     # counting number of ReLU.
     total = relu_counting(net, args)
+    if args.budegt_type == 'relative':
+        args.relu_budget = int(total * args.relu_budget)
 
     # Corresponds to Line 4-9
     lowest_relu_count, relu_count = total, total
@@ -150,7 +157,7 @@ def main():
             print("Current epochs breaking loop at {:}".format(epoch))
             break
 
-    log(logfilename, "After SNL Algorithm, the current ReLU Count: {}".format(relu_count))
+    log(logfilename, "After SNL Algorithm, the current ReLU Count: {}, rel. count:{}".format(relu_count, relu_count/total))
 
     # Line 11: Threshold and freeze alpha
     for name, param in net.named_parameters():
@@ -187,7 +194,7 @@ def main():
                     'arch': args.arch,
                     'state_dict': net.state_dict(),
                     'optimizer': optimizer.state_dict(),
-            }, os.path.join(args.outdir, 'snl_best_checkpoint.pth.tar'))
+            }, os.path.join(args.outdir, f'snl_best_checkpoint_{args.arch}_{args.dataset}_{args.relu_budget}.pth.tar'))
 
     print("Final best Prec@1 = {}%".format(best_top1))
     log(logfilename, "Final best Prec@1 = {}%".format(best_top1))
