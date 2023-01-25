@@ -1,6 +1,8 @@
-DATASET=cifar100
+DATASET=cifar10
 ARCH=resnet18_in
-RELU_BUDGET=100000
+SAVEDIR=./snl_output/cifar10/$ARCH/
+MODELDIR=./pretrained_models/cifar100/resnet18_in/best_checkpoint.pth.tar
+RELU_BUDGET=25000
 FINETUNE_EPOCH=100
 EPOCHS=2000
 MODELDIR=./pretrained_models/cifar100/resnet18_in/best_checkpoint.pth.tar
